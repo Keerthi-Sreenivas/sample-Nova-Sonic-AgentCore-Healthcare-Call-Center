@@ -64,6 +64,7 @@ Watch the system in action:
 | **cancel_appointment** | Cancel appointment with reason | DynamoDB update |
 | **find_available_slots** | Query available time slots | DynamoDB query |
 | **book_appointment_slot** | Book a specific slot | DynamoDB update |
+| **reschedule_appointment** | Search slots and book a new time (two-step) | DynamoDB query/update |
 | **record_health_update** | Capture health information | DynamoDB update |
 | **escalate_to_agent** | Flag for human callback | SNS notification |
 

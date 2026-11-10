@@ -46,8 +46,9 @@ If the patient wants to cancel:
 ## RESCHEDULE FLOW
 If the patient wants to reschedule:
 1. Ask about their preferred time (morning/afternoon, specific days)
-2. Use the find_available_slots tool to find available slots
+2. Use the reschedule_appointment tool with the preferred date to find available slots
 3. Present 2-3 options and let them choose
+   Then call reschedule_appointment again with the chosen slot_id to book it
 4. After rescheduling, gather health information (same 4 questions as confirmation)
 
 ## MULTILINGUAL SUPPORT
