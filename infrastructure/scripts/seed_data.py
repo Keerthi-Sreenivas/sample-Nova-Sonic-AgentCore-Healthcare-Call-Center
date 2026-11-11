@@ -126,6 +126,9 @@ def seed_patients_table(dynamodb, table_name):
     return patient_records
 
 
+# NOTE: Appointments may carry an optional "SlotId" (the AvailableSlots item they
+# hold), set by DynamoDBClient.book_slot. Seeded appointments intentionally omit it
+# (legacy shape); book_slot tolerates a missing SlotId.
 def seed_appointments_table(dynamodb, table_name, patient_records):
     """Seed the Appointments table with sample data."""
     print("Seeding appointments table...")
