@@ -267,6 +267,11 @@ class DynamoDBClient:
             Dict with success status and new appointment details
         """
         try:
+            # Look up the slot currently held by the appointment. Legacy
+            # appointments may have no SlotId.
+            appointment = self.get_appointment(appointment_id) or {}
+            old_slot_id = appointment.get("SlotId")
+
             # Get the slot details
             slot_response = self.available_slots_table.get_item(Key={"SlotId": slot_id})
             slot = slot_response.get("Item")
@@ -293,17 +298,27 @@ class DynamoDBClient:
                     return {"success": False, "message": "Slot is no longer available"}
                 raise
 
-            # Update the appointment with new slot details
-            self.appointments_table.update_item(
-                Key={"AppointmentId": appointment_id},
-                UpdateExpression="SET AppointmentDate = :date, AppointmentTime = :time, #status = :status",
-                ExpressionAttributeNames={"#status": "Status"},
-                ExpressionAttributeValues={
-                    ":date": slot.get("SlotDate"),
-                    ":time": slot.get("SlotTime"),
-                    ":status": "Rescheduled",
-                },
-            )
+            # Update the appointment with the new slot (stores SlotId so a
+            # later reschedule can release it). Roll back the new slot if this fails.
+            try:
+                self.appointments_table.update_item(
+                    Key={"AppointmentId": appointment_id},
+                    UpdateExpression="SET SlotId = :slot_id, AppointmentDate = :date, AppointmentTime = :time, #status = :status",
+                    ExpressionAttributeNames={"#status": "Status"},
+                    ExpressionAttributeValues={
+                        ":slot_id": slot_id,
+                        ":date": slot.get("SlotDate"),
+                        ":time": slot.get("SlotTime"),
+                        ":status": "Rescheduled",
+                    },
+                )
+            except ClientError:
+                self._release_slot(slot_id)
+                raise
+
+            # Free the previously held slot (best effort, must not fail the reschedule)
+            if old_slot_id and old_slot_id != slot_id:
+                self._release_slot(old_slot_id)
 
             logger.info("Slot booked successfully for appointment")
 
@@ -319,6 +334,25 @@ class DynamoDBClient:
         except ClientError as e:
             logger.error("Error booking slot: %s", e)
             return {"success": False, "message": f"Error booking slot: {str(e)}"}
+
+    def _release_slot(self, slot_id: str) -> bool:
+        """Mark a slot available again. Never raises; logs on failure.
+
+        Returns:
+            True if the slot was released
+        """
+        try:
+            self.available_slots_table.update_item(
+                Key={"SlotId": slot_id},
+                UpdateExpression="SET Available = :available",
+                ConditionExpression="attribute_exists(SlotId)",
+                ExpressionAttributeValues={":available": True},
+            )
+            logger.info("Slot released")
+            return True
+        except ClientError as e:
+            logger.error("Error releasing slot: %s", e)
+            return False
 
     def _normalize_name(self, name: str) -> str:
         """Normalize patient name to Title Case.

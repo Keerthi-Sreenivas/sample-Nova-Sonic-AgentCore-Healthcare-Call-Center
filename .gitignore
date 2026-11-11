@@ -33,5 +33,6 @@ venv/
 
 # Test files (local development)
 test_*.py
+!backend/tests/test_*.py
 .playwright-mcp
 .ruff_cache
